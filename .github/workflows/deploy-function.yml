@@ -14,6 +14,7 @@ env:
   FUNCTION_NAME: ingest-homepage-videos
   ENTRY_POINT: ingestVideos
   CLOUD_SQL_INSTANCE: ${{ secrets.CLOUD_SQL_INSTANCE }}
+  DB_NAME: ${{ secrets.DB_NAME }}
   SERVICE_ACCOUNT: ${{ secrets.SERVICE_ACCOUNT }}
 
 jobs:
@@ -57,7 +58,7 @@ jobs:
             --allow-unauthenticated \
             --service-account=${{ env.SERVICE_ACCOUNT }} \
             --build-service-account=projects/${{ env.PROJECT_ID }}/serviceAccounts/${{ env.SERVICE_ACCOUNT }} \
-            --set-env-vars="DB_HOST=/cloudsql/${{ env.CLOUD_SQL_INSTANCE }},DB_PORT=5432,DB_NAME=nbc_videos" \
+            --set-env-vars="DB_HOST=/cloudsql/${{ env.CLOUD_SQL_INSTANCE }},DB_PORT=5432,DB_NAME=${{ env.DB_NAME }}" \
             --set-secrets="DB_USERNAME=db-username:latest,DB_PASSWORD=db-password:latest,SCRAPERAPI_KEY=scraperapi-key:latest" \
             --project=${{ env.PROJECT_ID }} \
             --quiet
