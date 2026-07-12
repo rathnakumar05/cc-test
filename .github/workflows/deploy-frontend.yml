@@ -1,4 +1,4 @@
-name: Deploy Frontend to Firebase Hosting
+\name: Deploy Frontend to Firebase Hosting
 
 on:
   workflow_dispatch:
@@ -35,7 +35,7 @@ jobs:
       - name: Build
         run: npm run build
         env:
-          VITE_API_URL: ${{ vars.VITE_API_URL }}
+          VITE_BASE_URL: ${{ vars.VITE_API_URL }}
 
       - name: Authenticate to Google Cloud (WIF)
         id: auth
