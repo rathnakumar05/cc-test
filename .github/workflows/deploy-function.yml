@@ -9,8 +9,8 @@ on:
       - "function/**"
 
 env:
-  PROJECT_ID: ${{ secrets.PROJECT_ID }}
-  REGION: ${{ secrets.REGION }}
+  PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+  REGION: ${{ secrets.GCP_REGION }}
   FUNCTION_NAME: ingest-homepage-videos
   ENTRY_POINT: ingestVideos
   CLOUD_SQL_INSTANCE: ${{ secrets.CLOUD_SQL_INSTANCE }}
