@@ -163,9 +163,59 @@ jobs:
             --project=${{ env.PROJECT_ID }} \
             --quiet
 
+      - name: Debug - Check Cloud Run readiness
+        run: |
+          echo "=== Project & Region ==="
+          echo "PROJECT_ID: ${{ env.PROJECT_ID }}"
+          echo "REGION: ${{ env.REGION }}"
+          echo ""
+
+          echo "=== Enabled APIs ==="
+          gcloud services list --enabled --project=${{ env.PROJECT_ID }} \
+            --filter="name:(run.googleapis.com OR sqladmin.googleapis.com OR secretmanager.googleapis.com)" \
+            --format="table(name, title)"
+          echo ""
+
+          echo "=== Service Account Permissions ==="
+          echo "Service Account: ${{ env.SERVICE_ACCOUNT }}"
+          gcloud iam service-accounts describe ${{ env.SERVICE_ACCOUNT }} \
+            --project=${{ env.PROJECT_ID }} --format="yaml(email, disabled)" 2>&1 || echo "Could not describe service account"
+          echo ""
+
+          echo "=== Cloud SQL Instance ==="
+          gcloud sql instances describe $(echo "${{ env.CLOUD_SQL_INSTANCE }}" | cut -d: -f2) \
+            --project=${{ env.PROJECT_ID }} \
+            --format="table(state, region, connectionName)" 2>&1 || echo "Could not describe SQL instance"
+          echo ""
+
+          echo "=== Secrets Access ==="
+          gcloud secrets describe db-username --project=${{ env.PROJECT_ID }} --format="value(name)" 2>&1 || echo "Secret db-username not found"
+          gcloud secrets describe db-password --project=${{ env.PROJECT_ID }} --format="value(name)" 2>&1 || echo "Secret db-password not found"
+          echo ""
+
+          echo "=== Image Exists? ==="
+          gcloud artifacts docker images describe \
+            "${{ steps.meta.outputs.full_image }}:${{ steps.meta.outputs.tag }}" 2>&1 || echo "Image not found in registry"
+          echo ""
+
+          echo "=== Existing Cloud Run Service ==="
+          gcloud run services describe ${{ env.SERVICE_NAME }} \
+            --region=${{ env.REGION }} \
+            --project=${{ env.PROJECT_ID }} \
+            --format="yaml(status.conditions)" 2>&1 || echo "Service does not exist yet (first deploy)"
+          echo ""
+
+          echo "=== Recent Cloud Run Revisions ==="
+          gcloud run revisions list \
+            --service=${{ env.SERVICE_NAME }} \
+            --region=${{ env.REGION }} \
+            --project=${{ env.PROJECT_ID }} \
+            --limit=3 \
+            --format="table(name, status.conditions[0].type, status.conditions[0].status, status.conditions[0].message)" 2>&1 || echo "No revisions found"
+
       - name: Deploy to Cloud Run
         id: deploy
-        uses: google-github-actions/deploy-cloudrun@v2
+        uses: google-github-actions/deploy-cloudrun@v3
         with:
           service: ${{ env.SERVICE_NAME }}
           region: ${{ env.REGION }}
