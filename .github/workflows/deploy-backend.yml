@@ -157,7 +157,7 @@ jobs:
             --image=${MIGRATION_IMAGE} \
             --region=${{ env.REGION }} \
             --project=${{ env.PROJECT_ID }} \
-            --add-cloudsql-instances=${{ env.CLOUD_SQL_INSTANCE }} \
+            --set-cloudsql-instances=${{ env.CLOUD_SQL_INSTANCE }} \
             --set-env-vars="DB_HOST=/cloudsql/${{ env.CLOUD_SQL_INSTANCE }},DB_PORT=5432,DB_NAME=${{ env.DB_NAME }}" \
             --set-secrets="DB_USERNAME=db-username:latest,DB_PASSWORD=db-password:latest" \
             --task-timeout=10m \
