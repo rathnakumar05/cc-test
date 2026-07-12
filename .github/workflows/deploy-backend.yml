@@ -1,0 +1,188 @@
+name: Deploy Backend to Cloud Run
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "backend/**"
+
+env:
+  PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+  REGION: ${{ secrets.GCP_REGION }}
+  SERVICE_NAME: backend-service
+  ARTIFACT_REGISTRY: ${{ secrets.ARTIFACT_REGISTRY }}
+  DOCKER_REPOSITORY: ${{ secrets.DOCKER_REPOSITORY }}
+  IMAGE_NAME: nbc-backend-api
+  CLOUD_SQL_INSTANCE: ${{ secrets.CLOUD_SQL_INSTANCE }}
+  DB_NAME: ${{ secrets.DB_NAME }}
+  SERVICE_ACCOUNT: ${{ secrets.SERVICE_ACCOUNT }}
+
+jobs:
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: "npm"
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run lint
+        run: npm run lint
+
+      - name: Run tests
+        run: npm run test
+
+  build-and-deploy:
+    name: Build and Deploy
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud (WIF)
+        id: auth
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+          service_account: ${{ secrets.WIF_SERVICE_ACCOUNT }}
+          token_format: access_token
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker ${{ env.ARTIFACT_REGISTRY }} --quiet
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Cache Docker layers
+        uses: actions/cache@v4
+        with:
+          path: /tmp/.buildx-cache
+          key: ${{ runner.os }}-buildx-backend-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-buildx-backend-
+
+      - name: Generate image tag
+        id: meta
+        run: |
+          SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
+          IMAGE_TAG="${SHORT_SHA}-$(date +%Y%m%d%H%M%S)"
+          FULL_IMAGE="${{ env.ARTIFACT_REGISTRY }}/${{ env.DOCKER_REPOSITORY }}/${{ env.IMAGE_NAME }}"
+          echo "tag=${IMAGE_TAG}" >> "$GITHUB_OUTPUT"
+          echo "full_image=${FULL_IMAGE}" >> "$GITHUB_OUTPUT"
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./backend
+          push: true
+          tags: |
+            ${{ steps.meta.outputs.full_image }}:${{ steps.meta.outputs.tag }}
+            ${{ steps.meta.outputs.full_image }}:latest
+          cache-from: type=local,src=/tmp/.buildx-cache
+          cache-to: type=local,dest=/tmp/.buildx-cache-new,mode=max
+          labels: |
+            git-commit=${{ github.sha }}
+            git-ref=${{ github.ref }}
+
+      # Prevent cache from growing indefinitely
+      - name: Move cache
+        run: |
+          rm -rf /tmp/.buildx-cache
+          mv /tmp/.buildx-cache-new /tmp/.buildx-cache
+
+      - name: Check for migration changes
+        id: migration-check
+        run: |
+          git fetch origin main --depth=2
+          CHANGED=$(git diff --name-only HEAD~1 HEAD -- backend/migrations/ 2>/dev/null || true)
+          if [ -n "$CHANGED" ]; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            echo "Migration files changed:"
+            echo "$CHANGED"
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "No migration changes detected"
+          fi
+
+      - name: Build and push migration image
+        if: steps.migration-check.outputs.changed == 'true'
+        uses: docker/build-push-action@v6
+        with:
+          context: ./backend
+          push: true
+          target: migration
+          tags: |
+            ${{ steps.meta.outputs.full_image }}-migration:${{ steps.meta.outputs.tag }}
+          cache-from: type=local,src=/tmp/.buildx-cache
+          cache-to: type=local,dest=/tmp/.buildx-cache-new,mode=max
+
+      - name: Run database migration
+        if: steps.migration-check.outputs.changed == 'true'
+        run: |
+          MIGRATION_IMAGE="${{ steps.meta.outputs.full_image }}-migration:${{ steps.meta.outputs.tag }}"
+          JOB_NAME="${{ env.SERVICE_NAME }}-migration"
+
+          # Check if job exists, create or update accordingly
+          gcloud run jobs describe ${JOB_NAME} \
+            --region=${{ env.REGION }} \
+            --project=${{ env.PROJECT_ID }} 2>/dev/null \
+            && OPERATION="update" \
+            || OPERATION="create"
+
+          gcloud run jobs ${OPERATION} ${JOB_NAME} \
+            --image=${MIGRATION_IMAGE} \
+            --region=${{ env.REGION }} \
+            --project=${{ env.PROJECT_ID }} \
+            --add-cloudsql-instances=${{ env.CLOUD_SQL_INSTANCE }} \
+            --set-env-vars="DB_HOST=/cloudsql/${{ env.CLOUD_SQL_INSTANCE }},DB_PORT=5432,DB_NAME=${{ env.DB_NAME }}" \
+            --set-secrets="DB_USERNAME=db-username:latest,DB_PASSWORD=db-password:latest" \
+            --task-timeout=10m \
+            --quiet
+
+          gcloud run jobs execute ${JOB_NAME} \
+            --wait \
+            --region=${{ env.REGION }} \
+            --project=${{ env.PROJECT_ID }} \
+            --quiet
+
+      - name: Deploy to Cloud Run
+        id: deploy
+        uses: google-github-actions/deploy-cloudrun@v2
+        with:
+          service: ${{ env.SERVICE_NAME }}
+          region: ${{ env.REGION }}
+          image: ${{ steps.meta.outputs.full_image }}:${{ steps.meta.outputs.tag }}
+          flags: --add-cloudsql-instances=${{ env.CLOUD_SQL_INSTANCE }} --allow-unauthenticated --service-account=${{ env.SERVICE_ACCOUNT }}
+          env_vars: |
+            DB_HOST=/cloudsql/${{ env.CLOUD_SQL_INSTANCE }}
+            DB_PORT=5432
+            DB_NAME=${{ env.DB_NAME }}
+          secrets: |
+            DB_USERNAME=db-username:latest
+            DB_PASSWORD=db-password:latest
+
+      - name: Output deployment URL
+        run: |
+          echo "### ✅ Deployment Successful" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "**Service:** ${{ env.SERVICE_NAME }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "**Image:** \`${{ steps.meta.outputs.full_image }}:${{ steps.meta.outputs.tag }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "**URL:** ${{ steps.deploy.outputs.url }}" >> "$GITHUB_STEP_SUMMARY"

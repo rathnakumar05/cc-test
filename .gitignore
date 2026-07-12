@@ -1,0 +1,11 @@
+# Global gitignore for the monorepo
+
+# Compiled output
+dist/
+
+# Environment variables
+.env
+.env.*
+
+# Dependencies
+node_modules/

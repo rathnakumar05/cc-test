@@ -1,0 +1,81 @@
+name: Deploy Functions to Cloud Run Functions
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "functions/**"
+
+env:
+  PROJECT_ID: ${{ secrets.PROJECT_ID }}
+  REGION: ${{ secrets.REGION }}
+  FUNCTION_NAME: ingest-homepage-videos
+  ENTRY_POINT: ingestVideos
+  CLOUD_SQL_INSTANCE: ${{ secrets.CLOUD_SQL_INSTANCE }}
+  SERVICE_ACCOUNT: ${{ secrets.SERVICE_ACCOUNT }}
+
+jobs:
+  deploy:
+    name: Build and Deploy Function
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud (WIF)
+        id: auth
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+          service_account: ${{ secrets.WIF_SERVICE_ACCOUNT }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Install dependencies and build
+        working-directory: functions
+        run: |
+          npm ci
+          npm run build
+
+      - name: Deploy to Cloud Run Functions
+        working-directory: functions
+        run: |
+          gcloud functions deploy ${{ env.FUNCTION_NAME }} \
+            --gen2 \
+            --region=${{ env.REGION }} \
+            --runtime=nodejs22 \
+            --source=. \
+            --entry-point=${{ env.ENTRY_POINT }} \
+            --trigger-http \
+            --allow-unauthenticated \
+            --service-account=${{ env.SERVICE_ACCOUNT }} \
+            --set-env-vars="DB_HOST=/cloudsql/${{ env.CLOUD_SQL_INSTANCE }},DB_PORT=5432,DB_NAME=nbc_videos" \
+            --set-secrets="DB_USERNAME=db-username:latest,DB_PASSWORD=db-password:latest,SCRAPERAPI_KEY=scraperapi-key:latest" \
+            --project=${{ env.PROJECT_ID }} \
+            --quiet
+
+      - name: Attach Cloud SQL instance
+        run: |
+          gcloud run services update ${{ env.FUNCTION_NAME }} \
+            --add-cloudsql-instances=${{ env.CLOUD_SQL_INSTANCE }} \
+            --region=${{ env.REGION }} \
+            --project=${{ env.PROJECT_ID }} \
+            --quiet
+
+      - name: Output function URL
+        run: |
+          FUNCTION_URL=$(gcloud functions describe ${{ env.FUNCTION_NAME }} \
+            --gen2 \
+            --region=${{ env.REGION }} \
+            --project=${{ env.PROJECT_ID }} \
+            --format="value(serviceConfig.uri)")
+          echo "### Deployment Successful" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "**Function:** ${{ env.FUNCTION_NAME }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "**URL:** ${FUNCTION_URL}" >> "$GITHUB_STEP_SUMMARY"
