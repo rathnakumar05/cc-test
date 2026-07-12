@@ -62,7 +62,7 @@ function VideosList() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {data?.data.map((video) => (
+            {data?.data?.map((video) => (
               <TableRow
                 key={video.id}
                 className="hover:bg-muted/50 cursor-pointer"
@@ -118,7 +118,7 @@ function VideosList() {
         </Table>
       </div>
 
-      {data && (
+      {data?.data && (
         <div className="mt-4 flex items-center justify-between">
           <span className="text-muted-foreground text-sm">
             Showing {data.data.length} of {data.total} results

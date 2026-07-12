@@ -1,11 +1,12 @@
 name: Deploy Functions to Cloud Run Functions
 
 on:
+  workflow_dispatch:
   push:
     branches:
       - main
     paths:
-      - "functions/**"
+      - "function/**"
 
 env:
   PROJECT_ID: ${{ secrets.PROJECT_ID }}
