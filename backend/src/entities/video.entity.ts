@@ -37,10 +37,6 @@ export class Video {
   @Column({ name: 'twitter_link', nullable: true })
   twitterLink: string;
 
-  @ApiProperty({ example: 'https://twitter.com/intent/tweet?text=...' })
-  @Column({ name: 'test_link', nullable: true })
-  testLink: string;
-
   @ApiProperty()
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
