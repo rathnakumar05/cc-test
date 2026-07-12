@@ -89,7 +89,7 @@ jobs:
           echo "full_image=${FULL_IMAGE}" >> "$GITHUB_OUTPUT"
 
       - name: Build and push Docker image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: ./backend
           push: true
@@ -124,7 +124,7 @@ jobs:
 
       - name: Build and push migration image
         if: steps.migration-check.outputs.changed == 'true'
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: ./backend
           push: true

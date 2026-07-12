@@ -1,0 +1,12 @@
+Node 20 is being deprecated. This workflow is running with Node 24 by default. If you need to temporarily use Node 20, you can set the ACTIONS\*ALLOW\*USE*UNSECURE_NODE_VERSION=true environment variable. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+Run google-github-actions/deploy-cloudrun@v2
+/usr/bin/tar xz --warning=no-unknown-keyword --overwrite -C /home/runner/work/\_temp/9a85539b-da05-4382-8019-382f329c4737 -f /home/runner/work/\_temp/9f315fae-5506-4041-a6fb-b449f90e6fd4
+Successfully authenticated
+Running: gcloud run deploy backend-service --image \*\*\*/**\*/nbc-backend-api:5cf4ced-20260712064412 --update-env-vars ^,^DB_HOST=/cloudsql/***,DB\*PORT=5432,DB*NAME=**\* --update-secrets ^,^DB_USERNAME=db-username:latest,DB_PASSWORD=db-password:latest --update-labels ^,^managed-by=github-actions,commit-sha=5cf4ced4b247c063a75bd8534111e06fd00ea148 --format json --region *** --add-cloudsql-instances _** --allow-unauthenticated --service-account **_
+Error: google-github-actions/deploy-cloudrun failed with: failed to deploy: Deploying container to Cloud Run service [backend-service] in project [_**] region [\***]
+Deploying new service...
+Setting IAM Policy.........................done
+Creating Revision...............................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................
+
+This is the error on the cloud run GUI "Routing traffic
+Failed. Details: Initializing project for the current region. Resource readiness deadline exceeded."
