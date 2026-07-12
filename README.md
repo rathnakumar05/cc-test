@@ -71,6 +71,14 @@ npm run dev
 | `DB_PASSWORD`    | Database password (from Secret Manager) |
 | `SCRAPERAPI_KEY` | ScraperAPI key (from Secret Manager) |
 
+## Monorepo
+
+All three components (`frontend/`, `backend/`, `function/`) live in a single repository as independent npm packages, each with its own `package.json` and build tooling. Path-filtered CI deploys only the component that changed.
+
+## Trunk-Based Development
+
+The project follows trunk-based development — `main` is the single source of truth for all deployments. Developers work in short-lived feature branches and merge back via small, incremental pull requests. There are no long-lived `develop` or `release` branches.
+
 ## CI/CD
 
 Three GitHub Actions workflows deploy each component independently on push to `main`, scoped by path filters:
