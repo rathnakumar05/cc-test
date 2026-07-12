@@ -9,6 +9,7 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "npx functions-framework --target=ingestVideos --source=dist/",
     "build": "tsc",
+    "gcp-build": "",
     "dev": "nodemon --watch src -e ts --exec 'npm run build && npm run start'"
   },
   "dependencies": {
