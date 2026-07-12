@@ -44,6 +44,60 @@ jobs:
           npm ci
           npm run build
 
+      - name: Debug - Check build permissions
+        run: |
+          PROJECT_NUMBER=$(gcloud projects describe ${{ env.PROJECT_ID }} --format="value(projectNumber)")
+          echo "=== Project Info ==="
+          echo "PROJECT_ID: ${{ env.PROJECT_ID }}"
+          echo "PROJECT_NUMBER: ${PROJECT_NUMBER}"
+          echo ""
+
+          echo "=== Cloud Build Service Agent ==="
+          BUILD_SA="service-${PROJECT_NUMBER}@gcp-sa-cloudbuild.iam.gserviceaccount.com"
+          echo "Build SA: ${BUILD_SA}"
+          gcloud projects get-iam-policy ${{ env.PROJECT_ID }} \
+            --flatten="bindings[].members" \
+            --filter="bindings.members:${BUILD_SA}" \
+            --format="table(bindings.role)" 2>&1 || echo "Could not get IAM for build SA"
+          echo ""
+
+          echo "=== Default Compute SA ==="
+          COMPUTE_SA="${PROJECT_NUMBER}-compute@developer.gserviceaccount.com"
+          echo "Compute SA: ${COMPUTE_SA}"
+          gcloud projects get-iam-policy ${{ env.PROJECT_ID }} \
+            --flatten="bindings[].members" \
+            --filter="bindings.members:${COMPUTE_SA}" \
+            --format="table(bindings.role)" 2>&1 || echo "Could not get IAM for compute SA"
+          echo ""
+
+          echo "=== Function Build Config (if exists) ==="
+          gcloud functions describe ${{ env.FUNCTION_NAME }} \
+            --gen2 \
+            --region=${{ env.REGION }} \
+            --project=${{ env.PROJECT_ID }} \
+            --format="yaml(buildConfig)" 2>&1 || echo "Function does not exist yet"
+          echo ""
+
+          echo "=== Cloud Build Recent Builds ==="
+          gcloud builds list \
+            --region=${{ env.REGION }} \
+            --project=${{ env.PROJECT_ID }} \
+            --limit=3 \
+            --format="table(id, status, serviceAccount)" 2>&1 || echo "Could not list builds"
+          echo ""
+
+          echo "=== Org Policies (if any) ==="
+          gcloud org-policies list --project=${{ env.PROJECT_ID }} \
+            --filter="constraint:cloudbuild OR constraint:iam" \
+            --format="table(constraint, listPolicy, booleanPolicy)" 2>&1 || echo "Could not list org policies"
+          echo ""
+
+          echo "=== Artifact Registry Repos ==="
+          gcloud artifacts repositories list \
+            --project=${{ env.PROJECT_ID }} \
+            --location=${{ env.REGION }} \
+            --format="table(name, format)" 2>&1 || echo "Could not list repos"
+
       - name: Deploy to Cloud Run Function
         working-directory: function
         run: |
