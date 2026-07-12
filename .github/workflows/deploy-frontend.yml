@@ -1,4 +1,4 @@
-\name: Deploy Frontend to Firebase Hosting
+name: Deploy Frontend to Firebase Hosting
 
 on:
   workflow_dispatch:
