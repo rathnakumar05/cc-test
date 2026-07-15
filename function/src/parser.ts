@@ -49,7 +49,7 @@ function parseVideoItem(item: RawVideoItem): VideoRecord | null {
 export async function fetchAndParse(): Promise<VideoRecord[]> {
 const response = await axios.get<NBCResponse>(
   `https://api.scraperapi.com/?api_key=${process.env.SCRAPERAPI_KEY}&url=${encodeURIComponent(NBC_ENDPOINT)}`,
-  { timeout: 30000 }
+  { timeout: 50000 }
 );
 
   const data = response.data;
